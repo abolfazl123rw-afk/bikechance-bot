@@ -9,13 +9,14 @@ TOKEN = "8976579778:AAEzTMKr34TbVKM87vRdURJSzDusVT43UrA"
 ADMIN_ID = 8134673501
 CARD_NUMBER = "6037-7012-0879-3270"
 CARD_OWNER = "ابوالفضل کاظم شعار"
-PRICE = "۵۰,۰۰۰ تومان"
-CAPACITY = 2000
+PRICE = "۳۰,۰۰۰ تومان"
+CAPACITY = 20000
 SUPPORT_USERNAME = "@Abolfazl475386"
 CHANNEL_USERNAME = "@BikeChanceOfficial"
 
-PRIZE_1 = "دوچرخه+ ۱۰میلیون
+PRIZE_1 = "دوچرخه + ۱۰ میلیون تومان"
 PRIZE_2 = "۱۰ میلیون تومان"
+PRIZE_3 = "۵ میلیون تومان"
 
 logging.basicConfig(level=logging.INFO)
 
@@ -116,7 +117,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📊 ظرفیت:\n[{bar}]\n"
             f"✅ تأییدشده: {approved} نفر\n"
             f"🎯 باقی‌مونده: {remaining} نفر\n\n"
-            "🏁 قرعه‌کشی به محض تکمیل ۲۰۰۰ نفر برگزار میشه.\n"
+            f"🏁 قرعه‌کشی به محض تکمیل {CAPACITY} نفر برگزار میشه.\n"
             "📺 لایو زنده از یوتیوب\n\n"
             "برای شرکت، دکمه ثبت‌نام رو بزن.\n\n"
             f"📞 پشتیبانی: {SUPPORT_USERNAME}"
@@ -163,7 +164,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "3️⃣ عکس رسید بفرست\n"
         "4️⃣ منتظر تأیید بمون\n"
         "5️⃣ با /status وضعیتت رو چک کن\n\n"
-        "🏁 قرعه‌کشی: به محض تکمیل ۲۰۰۰ نفر\n"
+        f"🏁 قرعه‌کشی: به محض تکمیل {CAPACITY} نفر\n"
         "📺 پخش زنده از یوتیوب\n\n"
         "⚠️ هر رسید جعلی، منجر به حذف میشه.\n"
     )
@@ -184,7 +185,7 @@ async def capacity_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"👥 ثبت‌نام‌شده: {total} نفر\n"
         f"🎯 باقی‌مونده: {remaining} نفر\n"
         f"📈 درصد: {int(approved/CAPACITY*100)}%\n\n"
-        f"🏁 قرعه‌کشی: به محض تکمیل ۲۰۰۰ نفر"
+        f"🏁 قرعه‌کشی: به محض تکمیل {CAPACITY} نفر"
     )
     youtube = get_setting("youtube_live", "")
     if youtube:
@@ -240,7 +241,7 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"✅ تأییدشده: {approved}\n"
         f"⏳ در انتظار: {pending}\n"
         f"❌ رد شده: {rejected}\n"
-        f"💰 پول جمع‌شده: {approved * 50000:,} تومان\n"
+        f"💰 پول جمع‌شده: {approved * 30000:,} تومان\n"
         f"🎯 ظرفیت: {approved}/{CAPACITY}\n"
         f"📈 درصد: {int(approved/CAPACITY*100)}%\n\n"
         f"📺 لایو: {youtube}\n\n"
@@ -392,7 +393,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🎉 رسید شما تأیید شد!\n\n"
             f"👥 ظرفیت: {new_count}/{CAPACITY}\n"
             f"🎯 باقی‌مونده: {CAPACITY - new_count} نفر\n\n"
-            "🏁 به محض تکمیل ۲۰۰۰ نفر، قرعه‌کشی زنده در یوتیوب برگزار میشه.\n\n"
+            f"🏁 به محض تکمیل {CAPACITY} نفر، قرعه‌کشی زنده در یوتیوب برگزار میشه.\n\n"
             "موفق باشی! 🚲\n"
         )
         if youtube:
