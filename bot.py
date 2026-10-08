@@ -26,7 +26,7 @@ def init_db():
     c.execute("""CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
         name TEXT, city TEXT, phone TEXT,
-        tracking TEXT, paid INTEGER DEFAULT 0,
+        tracking TEXT UNIQUE, paid INTEGER DEFAULT 0,
         approved INTEGER DEFAULT 0, rejected INTEGER DEFAULT 0,
         date TEXT
     )""")
@@ -57,6 +57,13 @@ def count_users(approved_only=False):
     if approved_only:
         return db_exec("SELECT COUNT(*) FROM users WHERE approved=1")[0][0]
     return db_exec("SELECT COUNT(*) FROM users")[0][0]
+
+def generate_unique_code():
+    while True:
+        code = str(random.randint(100000, 999999))
+        existing = db_exec("SELECT user_id FROM users WHERE tracking=?", (code,))
+        if not existing:
+            return code
 
 def capacity_bar(approved):
     filled = int(approved / CAPACITY * 20)
@@ -247,7 +254,9 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📺 لایو: {youtube}\n\n"
         f"دستورات:\n"
         f"/setlive [لینک]\n"
-        f"/announce [پیام]"
+        f"/announce [پیام]\n"
+        f"/draw - انتخاب برنده‌ها\n"
+        f"/winner [کد] - اعلام برنده"
     )
 
 async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -271,10 +280,64 @@ async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"👤 {name}\n"
         f"🏙 {city}\n"
         f"📞 {phone}\n"
-        f"🎫 کد پیگیری: {tracking}\n"
+        f"🎫 کد قرعه‌کشی: {tracking}\n"
         f"📌 وضعیت: {status}\n\n"
         f"🎯 ظرفیت: {approved_now}/{CAPACITY}\n\n"
         f"📞 پشتیبانی: {SUPPORT_USERNAME}"
+    )
+
+async def draw_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.from_user.id != ADMIN_ID:
+        return
+    users = db_exec("SELECT user_id, name, tracking FROM users WHERE approved=1")
+    if len(users) < 3:
+        await update.message.reply_text("❌ حداقل ۳ نفر تأییدشده لازمه!")
+        return
+    winners = random.sample(users, 3)
+    msg = "🎲 سه برنده انتخاب شدن!\n\n"
+    labels = ["🥇 نفر اول", "🥈 نفر دوم", "🥉 نفر سوم"]
+    for i, w in enumerate(winners):
+        msg += f"{labels[i]}: کد `{w[2]}`\n"
+    msg += (
+        "\n🔒 این پیام محرمانه‌ست.\n\n"
+        "📺 تو لایو، رقم به رقم کد رو بگو:\n"
+        "مثال: رقم اول ۴، دوم ۸، سوم ۳ ...\n\n"
+        "بعد از لایو، با /winner [کد] اطلاعات برنده رو بگیر."
+    )
+    await update.message.reply_text(msg, parse_mode="Markdown")
+
+async def winner_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.from_user.id != ADMIN_ID:
+        return
+    if not context.args:
+        await update.message.reply_text("استفاده:\n/winner 483921")
+        return
+    code = context.args[0].strip()
+    result = db_exec("SELECT user_id, name, city, phone FROM users WHERE tracking=?", (code,))
+    if not result:
+        await update.message.reply_text(f"❌ کدی با شماره {code} پیدا نشد!")
+        return
+    user_id, name, city, phone = result[0]
+    try:
+        await context.bot.send_message(
+            user_id,
+            "🎉🎉 تبریک! 🎉🎉\n\n"
+            "شما برنده قرعه‌کشی BikeChance شدید!\n\n"
+            f"🎫 کد شما: {code}\n\n"
+            "برای دریافت جایزه، به پشتیبانی پیام بدید:\n"
+            f"📞 {SUPPORT_USERNAME}"
+        )
+        notified = "✅ پیام به برنده ارسال شد"
+    except:
+        notified = "⚠️ نتونستم به برنده پیام بدم"
+    await update.message.reply_text(
+        f"🎉 برنده پیدا شد!\n\n"
+        f"👤 نام: {name}\n"
+        f"🏙 شهر: {city}\n"
+        f"📞 تلفن: {phone}\n"
+        f"🎫 کد: {code}\n"
+        f"🆔 آیدی: {user_id}\n\n"
+        f"{notified}"
     )
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -311,7 +374,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         phone = text
         name = context.user_data.get("name", "")
         city = context.user_data.get("city", "")
-        tracking = str(random.randint(100000, 999999))
+        tracking = generate_unique_code()
         db_exec(
             "INSERT INTO users (user_id, name, city, phone, tracking, date) VALUES (?,?,?,?,?,?)",
             (user_id, name, city, phone, tracking, datetime.now().strftime("%Y/%m/%d %H:%M"))
@@ -324,9 +387,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"مبلغ {PRICE} رو واریز کن:\n\n"
             f"💳 {CARD_NUMBER}\n"
             f"به نام: {CARD_OWNER}\n\n"
-            f"🎫 کد پیگیری شما: {tracking}\n"
+            f"🎫 کد قرعه‌کشی شما: {tracking}\n"
             f"👥 ظرفیت باقی‌مونده: {remaining_now} نفر\n\n"
-            "⚠️ موقع واریز، حتماً این کد رو تو توضیحات تراکنش بنویس.\n\n"
+            "⚠️ این کد رو حتماً ذخیره کن، تو قرعه‌کشی بهش نیاز داری.\n\n"
             "بعد از واریز، عکس رسید رو بفرست.\n\n"
             f"📞 پشتیبانی: {SUPPORT_USERNAME}"
         )
@@ -344,7 +407,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db_exec("UPDATE users SET paid=1 WHERE user_id=?", (user_id,))
     await update.message.reply_text(
         f"✅ رسید دریافت شد!\n\n"
-        f"🎫 کد پیگیری: {tracking}\n"
+        f"🎫 کد قرعه‌کشی: {tracking}\n"
         "منتظر تأیید باش. /status رو بزن.\n\n"
         f"📞 پشتیبانی: {SUPPORT_USERNAME}"
     )
@@ -373,10 +436,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     action, uid = query.data.split("_")
     uid = int(uid)
-    result = db_exec("SELECT name FROM users WHERE user_id=?", (uid,))
+    result = db_exec("SELECT name, tracking FROM users WHERE user_id=?", (uid,))
     if not result:
         return
-    name = result[0][0]
+    name, tracking = result[0]
 
     if action == "approve":
         approved_count = count_users(approved_only=True)
@@ -386,14 +449,16 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db_exec("UPDATE users SET approved=1, rejected=0 WHERE user_id=?", (uid,))
         new_count = count_users(approved_only=True)
         await query.edit_message_caption(
-            caption=f"✅ تأیید شد: {name}\n👥 ظرفیت: {new_count}/{CAPACITY}"
+            caption=f"✅ تأیید شد: {name}\n🎫 کد: {tracking}\n👥 ظرفیت: {new_count}/{CAPACITY}"
         )
         youtube = get_setting("youtube_live", "")
         msg = (
             f"🎉 رسید شما تأیید شد!\n\n"
+            f"🎫 کد قرعه‌کشی شما: {tracking}\n"
             f"👥 ظرفیت: {new_count}/{CAPACITY}\n"
             f"🎯 باقی‌مونده: {CAPACITY - new_count} نفر\n\n"
             f"🏁 به محض تکمیل {CAPACITY} نفر، قرعه‌کشی زنده در یوتیوب برگزار میشه.\n\n"
+            "🚨 این کد رو حفظ کن! تو لایو لازمش داری.\n\n"
             "موفق باشی! 🚲\n"
         )
         if youtube:
@@ -444,6 +509,8 @@ def main():
     app.add_handler(CommandHandler("prizes", prizes_cmd))
     app.add_handler(CommandHandler("setlive", setlive_cmd))
     app.add_handler(CommandHandler("announce", announce_cmd))
+    app.add_handler(CommandHandler("draw", draw_cmd))
+    app.add_handler(CommandHandler("winner", winner_cmd))
     app.add_handler(CallbackQueryHandler(check_join_callback, pattern="^check_join$"))
     app.add_handler(CallbackQueryHandler(button_callback, pattern="^(approve|reject)_"))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
