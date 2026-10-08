@@ -199,6 +199,60 @@ async def capacity_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += f"\n📺 لینک لایو: {youtube}"
     await update.message.reply_text(msg)
 
+async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    result = db_exec("SELECT name, city, phone, tracking, paid, approved, rejected FROM users WHERE user_id=?", (user_id,))
+    if not result:
+        await update.message.reply_text("❌ هنوز ثبت‌نام نکردی. /start رو بزن.")
+        return
+    name, city, phone, tracking, paid, approved, rejected = result[0]
+    if approved:
+        st = "✅ تأییدشده"
+    elif rejected:
+        st = "❌ رد شده"
+    elif paid:
+        st = "⏳ در انتظار تأیید"
+    else:
+        st = "💳 در انتظار پرداخت"
+    approved_now = count_users(approved_only=True)
+    await update.message.reply_text(
+        f"📋 وضعیت شما:\n\n"
+        f"👤 {name}\n"
+        f"🏙 {city}\n"
+        f"📞 {phone}\n"
+        f"🎫 کد قرعه‌کشی: {tracking}\n"
+        f"📌 وضعیت: {st}\n\n"
+        f"🎯 ظرفیت: {approved_now}/{CAPACITY}\n\n"
+        f"📞 پشتیبانی: {SUPPORT_USERNAME}"
+    )
+
+async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.from_user.id != ADMIN_ID:
+        return
+    total = count_users()
+    approved = count_users(approved_only=True)
+    pending = db_exec("SELECT COUNT(*) FROM users WHERE paid=1 AND approved=0 AND rejected=0")[0][0]
+    rejected = db_exec("SELECT COUNT(*) FROM users WHERE rejected=1")[0][0]
+    youtube = get_setting("youtube_live", "❌ ست نشده")
+    await update.message.reply_text(
+        f"📊 آمار کامل:\n\n"
+        f"👥 کل ثبت‌نام: {total}\n"
+        f"✅ تأییدشده: {approved}\n"
+        f"⏳ در انتظار: {pending}\n"
+        f"❌ رد شده: {rejected}\n"
+        f"💰 پول جمع‌شده: {approved * 30000:,} تومان\n"
+        f"🎯 ظرفیت: {approved}/{CAPACITY}\n"
+        f"📈 درصد: {int(approved/CAPACITY*100)}%\n\n"
+        f"📺 لایو: {youtube}\n\n"
+        f"دستورات ادمین:\n"
+        f"/export - فایل کدها\n"
+        f"/list - لیست تأییدشده‌ها\n"
+        f"/draw - انتخاب برنده‌ها\n"
+        f"/winner [کد]\n"
+        f"/setlive [لینک]\n"
+        f"/announce [پیام]"
+    )
+
 async def setlive_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.from_user.id != ADMIN_ID:
         return
@@ -234,47 +288,20 @@ async def announce_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
     await update.message.reply_text(f"✅ پیام به {sent} نفر ارسال شد.")
 
-async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.from_user.id != ADMIN_ID:
-        return
-    total = count_users()
-    approved = count_users(approved_only=True)
-    pending = db_exec("SELECT COUNT(*) FROM users WHERE paid=1 AND approved=0 AND rejected=0")[0][0]
-    rejected = db_exec("SELECT COUNT(*) FROM users WHERE rejected=1")[0][0]
-    youtube = get_setting("youtube_live", "❌ ست نشده")
-    await update.message.reply_text(
-        f"📊 آمار کامل:\n\n"
-        f"👥 کل ثبت‌نام: {total}\n"
-        f"✅ تأییدشده: {approved}\n"
-        f"⏳ در انتظار: {pending}\n"
-        f"❌ رد شده: {rejected}\n"
-        f"💰 پول جمع‌شده: {approved * 30000:,} تومان\n"
-        f"🎯 ظرفیت: {approved}/{CAPACITY}\n"
-        f"📈 درصد: {int(approved/CAPACITY*100)}%\n\n"
-        f"📺 لایو: {youtube}\n\n"
-        f"دستورات:\n"
-        f"/export - خروجی کدها\n"
-        f"/draw - انتخاب برنده‌ها\n"
-        f"/winner [کد]\n"
-        f"/setlive [لینک]\n"
-        f"/announce [پیام]\n"
-        f"/list - لیست تأییدشده‌ها"
-    )
-
 async def list_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.from_user.id != ADMIN_ID:
         return
-    users = db_exec("SELECT name, city, phone, tracking FROM users WHERE approved=1 ORDER BY tracking ASC LIMIT 50")
+    users = db_exec("SELECT name, city, tracking FROM users WHERE approved=1 ORDER BY tracking ASC LIMIT 50")
     if not users:
         await update.message.reply_text("❌ هیچ کاربر تأییدشده‌ای نیست.")
         return
     msg = "📋 لیست ۵۰ نفر اول تأییدشده:\n\n"
     for i, u in enumerate(users, 1):
-        msg += f"{i}. {u[0]} | {u[1]} | کد: {u[3]}\n"
+        msg += f"{i}. {u[0]} | {u[1]} | کد: {u[2]}\n"
     total = count_users(approved_only=True)
     if total > 50:
         msg += f"\n... و {total - 50} نفر دیگه\n"
-        msg += "\nبرای لیست کامل از /export استفاده کن."
+        msg += "\nبرای لیست کامل /export رو بزن."
     await update.message.reply_text(msg)
 
 async def export_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -516,16 +543,16 @@ def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
-    app.add_handler(CommandHandler("stats", stats_cmd))
     app.add_handler(CommandHandler("status", status_cmd))
+    app.add_handler(CommandHandler("stats", stats_cmd))
     app.add_handler(CommandHandler("capacity", capacity_cmd))
     app.add_handler(CommandHandler("prizes", prizes_cmd))
     app.add_handler(CommandHandler("setlive", setlive_cmd))
     app.add_handler(CommandHandler("announce", announce_cmd))
+    app.add_handler(CommandHandler("list", list_cmd))
+    app.add_handler(CommandHandler("export", export_cmd))
     app.add_handler(CommandHandler("draw", draw_cmd))
     app.add_handler(CommandHandler("winner", winner_cmd))
-    app.add_handler(CommandHandler("export", export_cmd))
-    app.add_handler(CommandHandler("list", list_cmd))
     app.add_handler(CallbackQueryHandler(check_join_callback, pattern="^check_join$"))
     app.add_handler(CallbackQueryHandler(button_callback, pattern="^(approve|reject)_"))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
