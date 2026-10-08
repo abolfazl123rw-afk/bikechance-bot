@@ -11,6 +11,7 @@ CARD_NUMBER = "6037-7012-0879-3270"
 CARD_OWNER = "ابوالفضل کاظم شعار"
 PRICE = "۵۰,۰۰۰ تومان"
 CAPACITY = 2000
+SUPPORT_USERNAME = "@Abolfazl475386"
 
 logging.basicConfig(level=logging.INFO)
 
@@ -55,7 +56,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = (
             "⚠️ ظرفیت قرعه‌کشی تکمیل شده!\n\n"
             f"👥 تعداد نهایی: {approved} نفر\n"
-            "ثبت‌نام جدید امکان‌پذیر نیست."
+            "ثبت‌نام جدید امکان‌پذیر نیست.\n\n"
+            f"📞 پشتیبانی: {SUPPORT_USERNAME}"
         )
     else:
         msg = (
@@ -65,7 +67,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"✅ تأییدشده: {approved} نفر\n"
             f"👥 کل ثبت‌نام: {total} نفر\n"
             f"🎯 ظرفیت باقی‌مونده: {remaining} نفر\n\n"
-            "برای شرکت، دکمه ثبت‌نام رو بزن."
+            "برای شرکت، دکمه ثبت‌نام رو بزن.\n\n"
+            f"📞 پشتیبانی: {SUPPORT_USERNAME}"
         )
     
     keyboard = [["📝 ثبت‌نام در قرعه‌کشی"], ["ℹ️ راهنما", "📊 ظرفیت"]]
@@ -82,7 +85,8 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "3️⃣ عکس رسید بفرست\n"
         "4️⃣ منتظر تأیید بمون\n"
         "5️⃣ با /status وضعیتت رو چک کن\n\n"
-        "⚠️ توجه: هر رسید جعلی، منجر به حذف میشه."
+        "⚠️ توجه: هر رسید جعلی، منجر به حذف میشه.\n\n"
+        f"📞 پشتیبانی: {SUPPORT_USERNAME}"
     )
 
 async def capacity_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -138,7 +142,8 @@ async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🏙 شهر: {city}\n"
         f"📞 تلفن: {phone}\n"
         f"🎫 کد پیگیری: {tracking}\n"
-        f"📌 وضعیت: {status}"
+        f"📌 وضعیت: {status}\n\n"
+        f"📞 پشتیبانی: {SUPPORT_USERNAME}"
     )
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -154,7 +159,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if approved_count >= CAPACITY:
             await update.message.reply_text(
                 f"❌ متأسفانه ظرفیت {CAPACITY} نفر تکمیل شده!\n\n"
-                "دیگه امکان ثبت‌نام جدید وجود نداره."
+                "دیگه امکان ثبت‌نام جدید وجود نداره.\n\n"
+                f"📞 پشتیبانی: {SUPPORT_USERNAME}"
             )
             return
         context.user_data["step"] = "GET_NAME"
@@ -194,7 +200,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"به نام: {CARD_OWNER}\n\n"
             f"🎫 کد پیگیری شما: {tracking}\n\n"
             f"👥 ظرفیت باقی‌مونده: {remaining_now} نفر\n\n"
-            "بعد از واریز، عکس رسید رو بفرست."
+            "بعد از واریز، عکس رسید رو بفرست.\n\n"
+            f"📞 پشتیبانی: {SUPPORT_USERNAME}"
         )
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -211,7 +218,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"✅ رسید دریافت شد!\n\n"
         f"🎫 کد پیگیری: {tracking}\n"
-        "منتظر تأیید ادمین باش. با /status وضعیتت رو چک کن."
+        "منتظر تأیید ادمین باش. با /status وضعیتت رو چک کن.\n\n"
+        f"📞 پشتیبانی: {SUPPORT_USERNAME}"
     )
     keyboard = InlineKeyboardMarkup([[
         InlineKeyboardButton("✅ تأیید", callback_data=f"approve_{user_id}"),
@@ -261,7 +269,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"🎉 رسید شما تأیید شد!\n\n"
                 f"👥 ظرفیت فعلی: {new_count} از {CAPACITY}\n"
                 f"🎯 باقی‌مونده: {CAPACITY - new_count} نفر\n\n"
-                "موفق باشی! 🚲"
+                "موفق باشی! 🚲\n\n"
+                f"📞 پشتیبانی: {SUPPORT_USERNAME}"
             )
         except:
             pass
@@ -277,7 +286,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db_exec("UPDATE users SET approved=0, rejected=1 WHERE user_id=?", (uid,))
         await query.edit_message_caption(caption=f"❌ رد شد: {name}")
         try:
-            await context.bot.send_message(uid, "❌ متأسفانه رسید شما تأیید نشد. با پشتیبانی تماس بگیر.")
+            await context.bot.send_message(
+                uid,
+                f"❌ متأسفانه رسید شما تأیید نشد.\n\n"
+                f"📞 پشتیبانی: {SUPPORT_USERNAME}"
+            )
         except:
             pass
 
