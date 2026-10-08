@@ -14,9 +14,8 @@ CAPACITY = 2000
 SUPPORT_USERNAME = "@Abolfazl475386"
 CHANNEL_USERNAME = "@BikeChanceOfficial"
 
-PRIZE_1 = "۳۰ میلیون تومان"
-PRIZE_2 = "۱۵ میلیون تومان"
-PRIZE_3 = "۵ میلیون تومان"
+PRIZE_1 = "دوچرخه+ ۱۰میلیون
+PRIZE_2 = "۱۰ میلیون تومان"
 
 logging.basicConfig(level=logging.INFO)
 
