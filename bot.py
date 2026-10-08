@@ -3,7 +3,7 @@ from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 TOKEN = "8976579778:AAEzTMKr34TbVKM87vRdURJSzDusVT43UrA"
-ADMIN_ID = 0
+ADMIN_ID = 8134673501
 CARD_NUMBER = "6037-7012-0879-3270"
 CARD_OWNER = "ابوالفضل کاظم شعار"
 PRICE = "۵۰,۰۰۰ تومان"
