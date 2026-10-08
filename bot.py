@@ -12,8 +12,8 @@ CARD_OWNER = "ابوالفضل کاظم شعار"
 PRICE = "۵۰,۰۰۰ تومان"
 CAPACITY = 2000
 SUPPORT_USERNAME = "@Abolfazl475386"
+CHANNEL_USERNAME = "@BikeChanceOfficial"
 
-# جوایز
 PRIZE_1 = "۳۰ میلیون تومان"
 PRIZE_2 = "۱۵ میلیون تومان"
 PRIZE_3 = "۵ میلیون تومان"
@@ -62,7 +62,31 @@ def capacity_bar(approved):
     filled = int(approved / CAPACITY * 20)
     return "█" * filled + "░" * (20 - filled)
 
+async def check_membership(user_id, context):
+    try:
+        member = await context.bot.get_chat_member(CHANNEL_USERNAME, user_id)
+        return member.status in ["member", "administrator", "creator"]
+    except:
+        return False
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    is_member = await check_membership(user_id, context)
+
+    if not is_member:
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton("📢 عضویت در کانال", url=f"https://t.me/{CHANNEL_USERNAME.replace('@','')}")
+        ], [
+            InlineKeyboardButton("✅ عضو شدم", callback_data="check_join")
+        ]])
+        await update.message.reply_text(
+            "⚠️ برای استفاده از بات، اول باید عضو کانال رسمی بشی:\n\n"
+            f"📢 {CHANNEL_USERNAME}\n\n"
+            "بعد از عضویت، دکمه «عضو شدم» رو بزن.",
+            reply_markup=keyboard
+        )
+        return
+
     total = count_users()
     approved = count_users(approved_only=True)
     remaining = CAPACITY - approved
@@ -70,17 +94,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     youtube = get_setting("youtube_live", "")
 
     prize_text = (
-        "🏆 جوایز قرعه‌کشی:\n"
-        f"🥇 نفر اول: {PRIZE_1}\n"
-        f"🥈 نفر دوم: {PRIZE_2}\n"
-        f"🥉 نفر سوم: {PRIZE_3}\n"
+        "🏆 جوایز:\n"
+        f"🥇 {PRIZE_1}\n"
+        f"🥈 {PRIZE_2}\n"
+        f"🥉 {PRIZE_3}\n"
     )
 
     if approved >= CAPACITY:
         msg = (
-            "🔔 ظرفیت قرعه‌کشی تکمیل شد!\n\n"
-            f"👥 تعداد نهایی: {approved} نفر\n"
-            "🏆 قرعه‌کشی به زودی در یوتیوب به صورت زنده پخش میشه.\n\n"
+            "🔔 ظرفیت تکمیل شد!\n\n"
+            f"👥 {approved} نفر شرکت کردن\n"
+            "🏆 قرعه‌کشی به زودی در یوتیوب زنده پخش میشه.\n\n"
             f"{prize_text}\n"
         )
         if youtube:
@@ -90,10 +114,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = (
             "سلام! به سامانه رسمی قرعه‌کشی دوچرخه خوش آمدی 🚲\n\n"
             f"{prize_text}\n"
-            f"📊 وضعیت ظرفیت:\n"
-            f"[{bar}]\n"
+            f"📊 ظرفیت:\n[{bar}]\n"
             f"✅ تأییدشده: {approved} نفر\n"
-            f"👥 کل ثبت‌نام: {total} نفر\n"
             f"🎯 باقی‌مونده: {remaining} نفر\n\n"
             "🏁 قرعه‌کشی به محض تکمیل ۲۰۰۰ نفر برگزار میشه.\n"
             "📺 لایو زنده از یوتیوب\n\n"
@@ -107,6 +129,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     )
 
+async def check_join_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    is_member = await check_membership(user_id, context)
+    if is_member:
+        await query.message.delete()
+        await query.message.reply_text(
+            "✅ عضویت تأیید شد!\n\n"
+            "حالا /start رو بزن تا شروع کنیم."
+        )
+    else:
+        await query.answer("❌ هنوز عضو نشدی!", show_alert=True)
+
 async def prizes_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🎁 جوایز قرعه‌کشی:\n\n"
@@ -115,7 +151,7 @@ async def prizes_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🥉 نفر سوم: {PRIZE_3}\n\n"
         f"💳 ورودی: {PRICE}\n"
         f"👥 ظرفیت: {CAPACITY} نفر\n\n"
-        "🏁 قرعه‌کشی به محض تکمیل ظرفیت، به صورت زنده در یوتیوب برگزار میشه.\n\n"
+        "🏁 قرعه‌کشی به محض تکمیل ظرفیت، زنده در یوتیوب برگزار میشه.\n\n"
         f"📞 پشتیبانی: {SUPPORT_USERNAME}"
     )
 
@@ -130,7 +166,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "5️⃣ با /status وضعیتت رو چک کن\n\n"
         "🏁 قرعه‌کشی: به محض تکمیل ۲۰۰۰ نفر\n"
         "📺 پخش زنده از یوتیوب\n\n"
-        "⚠️ توجه: هر رسید جعلی، منجر به حذف میشه.\n"
+        "⚠️ هر رسید جعلی، منجر به حذف میشه.\n"
     )
     if youtube:
         msg += f"\n📺 لایو: {youtube}\n"
@@ -161,18 +197,18 @@ async def setlive_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if not context.args:
         await update.message.reply_text(
-            "📺 برای ست کردن لینک لایو:\n\n"
+            "📺 ست کردن لینک لایو:\n\n"
             "/setlive https://youtube.com/live/xxxxx\n\n"
-            "برای حذف:\n/setlive remove"
+            "حذف:\n/setlive remove"
         )
         return
     link = " ".join(context.args)
     if link.lower() == "remove":
         set_setting("youtube_live", "")
-        await update.message.reply_text("✅ لینک لایو حذف شد.")
+        await update.message.reply_text("✅ لینک حذف شد.")
     else:
         set_setting("youtube_live", link)
-        await update.message.reply_text(f"✅ لینک لایو ست شد:\n{link}")
+        await update.message.reply_text(f"✅ لینک ست شد:\n{link}")
 
 async def announce_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.from_user.id != ADMIN_ID:
@@ -210,15 +246,15 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📈 درصد: {int(approved/CAPACITY*100)}%\n\n"
         f"📺 لایو: {youtube}\n\n"
         f"دستورات:\n"
-        f"/setlive [لینک] - ست کردن لایو\n"
-        f"/announce [پیام] - ارسال به همه"
+        f"/setlive [لینک]\n"
+        f"/announce [پیام]"
     )
 
 async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     result = db_exec("SELECT name, city, phone, tracking, paid, approved, rejected FROM users WHERE user_id=?", (user_id,))
     if not result:
-        await update.message.reply_text("❌ شما هنوز ثبت‌نام نکردی. /start رو بزن.")
+        await update.message.reply_text("❌ هنوز ثبت‌نام نکردی. /start رو بزن.")
         return
     name, city, phone, tracking, paid, approved, rejected = result[0]
     if approved:
@@ -232,9 +268,9 @@ async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     approved_now = count_users(approved_only=True)
     await update.message.reply_text(
         f"📋 وضعیت شما:\n\n"
-        f"👤 نام: {name}\n"
-        f"🏙 شهر: {city}\n"
-        f"📞 تلفن: {phone}\n"
+        f"👤 {name}\n"
+        f"🏙 {city}\n"
+        f"📞 {phone}\n"
         f"🎫 کد پیگیری: {tracking}\n"
         f"📌 وضعیت: {status}\n\n"
         f"🎯 ظرفیت: {approved_now}/{CAPACITY}\n\n"
@@ -249,7 +285,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == "📝 ثبت‌نام در قرعه‌کشی":
         if existing:
-            await update.message.reply_text("شما قبلاً ثبت‌نام کردی! با /status وضعیتت رو ببین.")
+            await update.message.reply_text("قبلاً ثبت‌نام کردی! /status رو بزن.")
             return
         if approved_count >= CAPACITY:
             await update.message.reply_text("❌ ظرفیت تکمیل شده!")
@@ -290,6 +326,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"به نام: {CARD_OWNER}\n\n"
             f"🎫 کد پیگیری شما: {tracking}\n"
             f"👥 ظرفیت باقی‌مونده: {remaining_now} نفر\n\n"
+            "⚠️ موقع واریز، حتماً این کد رو تو توضیحات تراکنش بنویس.\n\n"
             "بعد از واریز، عکس رسید رو بفرست.\n\n"
             f"📞 پشتیبانی: {SUPPORT_USERNAME}"
         )
@@ -302,7 +339,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     name, city, phone, tracking, approved = result[0]
     if approved:
-        await update.message.reply_text("✅ شما قبلاً تأیید شدی.")
+        await update.message.reply_text("✅ قبلاً تأیید شدی.")
         return
     db_exec("UPDATE users SET paid=1 WHERE user_id=?", (user_id,))
     await update.message.reply_text(
@@ -323,7 +360,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"👤 {name}\n"
             f"🏙 {city}\n"
             f"📞 {phone}\n"
-            f"🎫 {tracking}\n"
+            f"🎫 کد: {tracking}\n"
             f"🆔 {user_id}"
         ),
         reply_markup=keyboard
@@ -371,11 +408,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             all_users = db_exec("SELECT user_id FROM users WHERE approved=1")
             announce_msg = (
                 f"🔔 ظرفیت {CAPACITY} نفر تکمیل شد!\n\n"
-                f"🏆 قرعه‌کشی به زودی به صورت زنده در یوتیوب پخش میشه.\n"
-                "📺 منتظر لینک لایو باش.\n"
+                f"🏆 قرعه‌کشی به زودی زنده در یوتیوب پخش میشه.\n"
+                "📺 منتظر لینک باش.\n"
             )
             if youtube:
-                announce_msg += f"\n📺 لینک: {youtube}"
+                announce_msg += f"\n📺 {youtube}"
             for u in all_users:
                 try:
                     await context.bot.send_message(u[0], announce_msg)
@@ -407,7 +444,8 @@ def main():
     app.add_handler(CommandHandler("prizes", prizes_cmd))
     app.add_handler(CommandHandler("setlive", setlive_cmd))
     app.add_handler(CommandHandler("announce", announce_cmd))
-    app.add_handler(CallbackQueryHandler(button_callback))
+    app.add_handler(CallbackQueryHandler(check_join_callback, pattern="^check_join$"))
+    app.add_handler(CallbackQueryHandler(button_callback, pattern="^(approve|reject)_"))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     print("ربات روشن شد...")
