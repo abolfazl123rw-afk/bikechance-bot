@@ -76,6 +76,26 @@ async def check_membership(user_id, context):
     except:
         return False
 
+def trust_message():
+    return (
+        "👋 خوش آمدی به BikeChance!\n\n"
+        "قبل از شروع، بذار یه توضیح کوتاه بدم:\n\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        "🎯 ما یه قرعه‌کشی رسمی و شفاف برگزار می‌کنیم.\n\n"
+        "🛡 چرا می‌تونی اعتماد کنی؟\n\n"
+        "🔹 هر شرکت‌کننده یه کد یکتا ۶ رقمی می‌گیره\n"
+        "🔹 کدها تو دیتابیس ذخیره میشن\n"
+        "🔹 رسیدها توسط ادمین دستی تأیید میشن\n"
+        "🔹 قرعه‌کشی زنده در یوتیوب پخش میشه\n"
+        "🔹 هیچ کدی حذف یا اضافه نمیشه\n"
+        "🔹 همه کدها تو لایو قابل مشاهده‌ن\n"
+        "🔹 اگه هر مشکلی داشتی، پشتیبانی هست\n"
+        "━━━━━━━━━━━━━━━━━\n\n"
+        f"📋 ظرفیت: {CAPACITY} نفر\n"
+        f"💳 ورودی: {PRICE}\n\n"
+        "برای ادامه، دکمه زیر رو بزن."
+    )
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     is_member = await check_membership(user_id, context)
@@ -93,6 +113,27 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=keyboard
         )
         return
+
+    seen = get_setting(f"seen_{user_id}", "")
+    if not seen:
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton("✅ متوجه شدم، ادامه", callback_data="show_menu")
+        ]])
+        await update.message.reply_text(
+            trust_message(),
+            reply_markup=keyboard
+        )
+        return
+
+    await show_main_menu(update, context)
+
+async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message:
+        user_id = update.message.from_user.id
+        send_func = update.message.reply_text
+    else:
+        user_id = update.callback_query.from_user.id
+        send_func = None
 
     total = count_users()
     approved = count_users(approved_only=True)
@@ -131,10 +172,27 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     keyboard = [["📝 ثبت‌نام در قرعه‌کشی"], ["ℹ️ راهنما", "📊 ظرفیت", "🎁 جوایز"]]
-    await update.message.reply_text(
-        msg,
-        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    )
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+    if send_func:
+        await send_func(msg, reply_markup=reply_markup)
+    else:
+        await context.bot.send_message(
+            chat_id=user_id,
+            text=msg,
+            reply_markup=reply_markup
+        )
+
+async def show_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    set_setting(f"seen_{user_id}", "1")
+    try:
+        await query.message.delete()
+    except:
+        pass
+    await show_main_menu(update, context)
 
 async def check_join_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -142,11 +200,22 @@ async def check_join_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     user_id = query.from_user.id
     is_member = await check_membership(user_id, context)
     if is_member:
-        await query.message.delete()
-        await query.message.reply_text(
-            "✅ عضویت تأیید شد!\n\n"
-            "حالا /start رو بزن تا شروع کنیم."
-        )
+        try:
+            await query.message.delete()
+        except:
+            pass
+        seen = get_setting(f"seen_{user_id}", "")
+        if not seen:
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton("✅ متوجه شدم، ادامه", callback_data="show_menu")
+            ]])
+            await context.bot.send_message(
+                user_id,
+                trust_message(),
+                reply_markup=keyboard
+            )
+        else:
+            await show_main_menu(update, context)
     else:
         await query.answer("❌ هنوز عضو نشدی!", show_alert=True)
 
@@ -554,6 +623,7 @@ def main():
     app.add_handler(CommandHandler("draw", draw_cmd))
     app.add_handler(CommandHandler("winner", winner_cmd))
     app.add_handler(CallbackQueryHandler(check_join_callback, pattern="^check_join$"))
+    app.add_handler(CallbackQueryHandler(show_menu_callback, pattern="^show_menu$"))
     app.add_handler(CallbackQueryHandler(button_callback, pattern="^(approve|reject)_"))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
