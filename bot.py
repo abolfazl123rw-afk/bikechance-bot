@@ -41,13 +41,36 @@ def count_users(approved_only=False):
         return db_exec("SELECT COUNT(*) FROM users WHERE approved=1")[0][0]
     return db_exec("SELECT COUNT(*) FROM users")[0][0]
 
+def capacity_bar(approved):
+    filled = int(approved / CAPACITY * 20)
+    return "█" * filled + "░" * (20 - filled)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total = count_users()
+    approved = count_users(approved_only=True)
+    remaining = CAPACITY - approved
+    bar = capacity_bar(approved)
+    
+    if approved >= CAPACITY:
+        msg = (
+            "⚠️ ظرفیت قرعه‌کشی تکمیل شده!\n\n"
+            f"👥 تعداد نهایی: {approved} نفر\n"
+            "ثبت‌نام جدید امکان‌پذیر نیست."
+        )
+    else:
+        msg = (
+            "سلام! به سامانه رسمی قرعه‌کشی دوچرخه خوش آمدی 🚲\n\n"
+            f"📊 وضعیت ظرفیت:\n"
+            f"[{bar}]\n"
+            f"✅ تأییدشده: {approved} نفر\n"
+            f"👥 کل ثبت‌نام: {total} نفر\n"
+            f"🎯 ظرفیت باقی‌مونده: {remaining} نفر\n\n"
+            "برای شرکت، دکمه ثبت‌نام رو بزن."
+        )
+    
     keyboard = [["📝 ثبت‌نام در قرعه‌کشی"], ["ℹ️ راهنما", "📊 ظرفیت"]]
     await update.message.reply_text(
-        "سلام! به سامانه رسمی قرعه‌کشی دوچرخه خوش آمدی 🚲\n\n"
-        f"👥 تا الان {total} نفر از {CAPACITY} نفر ثبت‌نام کردن.\n\n"
-        "برای شرکت، دکمه ثبت‌نام رو بزن.",
+        msg,
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     )
 
@@ -66,10 +89,12 @@ async def capacity_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total = count_users()
     approved = count_users(approved_only=True)
     remaining = CAPACITY - approved
+    bar = capacity_bar(approved)
     await update.message.reply_text(
-        f"📊 ظرفیت قرعه‌کشی:\n\n"
-        f"👥 ثبت‌نام‌شده: {total} نفر\n"
+        f"📊 وضعیت ظرفیت قرعه‌کشی:\n\n"
+        f"[{bar}]\n\n"
         f"✅ تأییدشده: {approved} نفر\n"
+        f"👥 ثبت‌نام‌شده: {total} نفر\n"
         f"🎯 باقی‌مونده: {remaining} نفر\n"
         f"📈 درصد پر شدن: {int(approved/CAPACITY*100)}%"
     )
@@ -78,7 +103,7 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.from_user.id != ADMIN_ID:
         return
     total = count_users()
-    approved = db_exec("SELECT COUNT(*) FROM users WHERE approved=1")[0][0]
+    approved = count_users(approved_only=True)
     pending = db_exec("SELECT COUNT(*) FROM users WHERE paid=1 AND approved=0 AND rejected=0")[0][0]
     rejected = db_exec("SELECT COUNT(*) FROM users WHERE rejected=1")[0][0]
     await update.message.reply_text(
@@ -87,8 +112,9 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"✅ تأییدشده: {approved}\n"
         f"⏳ در انتظار: {pending}\n"
         f"❌ رد شده: {rejected}\n"
-        f"💰 پول جمع‌شده (تأییدشده): {approved * 50000:,} تومان\n"
-        f"🎯 ظرفیت: {approved}/{CAPACITY}"
+        f"💰 پول جمع‌شده: {approved * 50000:,} تومان\n"
+        f"🎯 ظرفیت: {approved}/{CAPACITY}\n"
+        f"📈 درصد: {int(approved/CAPACITY*100)}%"
     )
 
 async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -119,13 +145,24 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_id = update.message.from_user.id
     existing = db_exec("SELECT user_id FROM users WHERE user_id=?", (user_id,))
+    approved_count = count_users(approved_only=True)
 
     if text == "📝 ثبت‌نام در قرعه‌کشی":
         if existing:
             await update.message.reply_text("شما قبلاً ثبت‌نام کردی! با /status وضعیتت رو ببین.")
             return
+        if approved_count >= CAPACITY:
+            await update.message.reply_text(
+                f"❌ متأسفانه ظرفیت {CAPACITY} نفر تکمیل شده!\n\n"
+                "دیگه امکان ثبت‌نام جدید وجود نداره."
+            )
+            return
         context.user_data["step"] = "GET_NAME"
-        await update.message.reply_text("لطفاً نام و نام خانوادگی خودت رو بنویس:")
+        remaining = CAPACITY - approved_count
+        await update.message.reply_text(
+            f"👥 ظرفیت باقی‌مونده: {remaining} نفر\n\n"
+            "لطفاً نام و نام خانوادگی خودت رو بنویس:"
+        )
     elif text == "ℹ️ راهنما":
         await help_cmd(update, context)
     elif text == "📊 ظرفیت":
@@ -148,12 +185,15 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             (user_id, name, city, phone, tracking, datetime.now().strftime("%Y/%m/%d %H:%M"))
         )
         context.user_data["step"] = None
+        approved_now = count_users(approved_only=True)
+        remaining_now = CAPACITY - approved_now
         await update.message.reply_text(
             f"ممنون {name} عزیز! ✅\n\n"
             f"برای تکمیل، مبلغ {PRICE} رو واریز کن:\n\n"
             f"💳 {CARD_NUMBER}\n"
             f"به نام: {CARD_OWNER}\n\n"
-            f"🎫 کد پیگیری شما: {tracking}\n"
+            f"🎫 کد پیگیری شما: {tracking}\n\n"
+            f"👥 ظرفیت باقی‌مونده: {remaining_now} نفر\n\n"
             "بعد از واریز، عکس رسید رو بفرست."
         )
 
@@ -202,13 +242,37 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not result:
         return
     name = result[0][0]
+
     if action == "approve":
+        approved_count = count_users(approved_only=True)
+        if approved_count >= CAPACITY:
+            await query.edit_message_caption(
+                caption=f"⚠️ ظرفیت تکمیل شده! نمی‌تونی تأیید کنی.\n\n{name}"
+            )
+            return
         db_exec("UPDATE users SET approved=1, rejected=0 WHERE user_id=?", (uid,))
-        await query.edit_message_caption(caption=f"✅ تأیید شد: {name}")
+        new_count = count_users(approved_only=True)
+        await query.edit_message_caption(
+            caption=f"✅ تأیید شد: {name}\n👥 ظرفیت: {new_count}/{CAPACITY}"
+        )
         try:
-            await context.bot.send_message(uid, "🎉 رسید شما تأیید شد! در قرعه‌کشی شرکت داده شدی.")
+            await context.bot.send_message(
+                uid,
+                f"🎉 رسید شما تأیید شد!\n\n"
+                f"👥 ظرفیت فعلی: {new_count} از {CAPACITY}\n"
+                f"🎯 باقی‌مونده: {CAPACITY - new_count} نفر\n\n"
+                "موفق باشی! 🚲"
+            )
         except:
             pass
+        if new_count >= CAPACITY:
+            try:
+                await context.bot.send_message(
+                    ADMIN_ID,
+                    f"🔔 ظرفیت {CAPACITY} نفر تکمیل شد!"
+                )
+            except:
+                pass
     else:
         db_exec("UPDATE users SET approved=0, rejected=1 WHERE user_id=?", (uid,))
         await query.edit_message_caption(caption=f"❌ رد شد: {name}")
