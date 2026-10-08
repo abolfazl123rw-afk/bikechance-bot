@@ -253,37 +253,50 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📈 درصد: {int(approved/CAPACITY*100)}%\n\n"
         f"📺 لایو: {youtube}\n\n"
         f"دستورات:\n"
+        f"/export - خروجی کدها\n"
+        f"/draw - انتخاب برنده‌ها\n"
+        f"/winner [کد]\n"
         f"/setlive [لینک]\n"
         f"/announce [پیام]\n"
-        f"/draw - انتخاب برنده‌ها\n"
-        f"/winner [کد] - اعلام برنده"
+        f"/list - لیست تأییدشده‌ها"
     )
 
-async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    result = db_exec("SELECT name, city, phone, tracking, paid, approved, rejected FROM users WHERE user_id=?", (user_id,))
-    if not result:
-        await update.message.reply_text("❌ هنوز ثبت‌نام نکردی. /start رو بزن.")
+async def list_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.from_user.id != ADMIN_ID:
         return
-    name, city, phone, tracking, paid, approved, rejected = result[0]
-    if approved:
-        status = "✅ تأییدشده"
-    elif rejected:
-        status = "❌ رد شده"
-    elif paid:
-        status = "⏳ در انتظار تأیید"
-    else:
-        status = "💳 در انتظار پرداخت"
-    approved_now = count_users(approved_only=True)
-    await update.message.reply_text(
-        f"📋 وضعیت شما:\n\n"
-        f"👤 {name}\n"
-        f"🏙 {city}\n"
-        f"📞 {phone}\n"
-        f"🎫 کد قرعه‌کشی: {tracking}\n"
-        f"📌 وضعیت: {status}\n\n"
-        f"🎯 ظرفیت: {approved_now}/{CAPACITY}\n\n"
-        f"📞 پشتیبانی: {SUPPORT_USERNAME}"
+    users = db_exec("SELECT name, city, phone, tracking FROM users WHERE approved=1 ORDER BY tracking ASC LIMIT 50")
+    if not users:
+        await update.message.reply_text("❌ هیچ کاربر تأییدشده‌ای نیست.")
+        return
+    msg = "📋 لیست ۵۰ نفر اول تأییدشده:\n\n"
+    for i, u in enumerate(users, 1):
+        msg += f"{i}. {u[0]} | {u[1]} | کد: {u[3]}\n"
+    total = count_users(approved_only=True)
+    if total > 50:
+        msg += f"\n... و {total - 50} نفر دیگه\n"
+        msg += "\nبرای لیست کامل از /export استفاده کن."
+    await update.message.reply_text(msg)
+
+async def export_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.from_user.id != ADMIN_ID:
+        return
+    users = db_exec("SELECT tracking FROM users WHERE approved=1 ORDER BY tracking ASC")
+    if not users:
+        await update.message.reply_text("❌ هیچ کاربر تأییدشده‌ای نیست.")
+        return
+    codes = [str(u[0]) for u in users]
+    text = "\n".join(codes)
+    filename = f"codes_{datetime.now().strftime('%Y%m%d_%H%M')}.txt"
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(text)
+    await update.message.reply_document(
+        document=open(filename, "rb"),
+        caption=(
+            f"📋 لیست کدهای قرعه‌کشی\n\n"
+            f"👥 تعداد: {len(codes)} کد\n"
+            f"📅 {datetime.now().strftime('%Y/%m/%d %H:%M')}\n\n"
+            "این فایل رو تو wheelofnames.com آپلود کن."
+        )
     )
 
 async def draw_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -299,10 +312,10 @@ async def draw_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for i, w in enumerate(winners):
         msg += f"{labels[i]}: کد `{w[2]}`\n"
     msg += (
-        "\n🔒 این پیام محرمانه‌ست.\n\n"
-        "📺 تو لایو، رقم به رقم کد رو بگو:\n"
-        "مثال: رقم اول ۴، دوم ۸، سوم ۳ ...\n\n"
-        "بعد از لایو، با /winner [کد] اطلاعات برنده رو بگیر."
+        "\n🔒 محرمانه.\n\n"
+        "📺 تو لایو رقم به رقم بگو:\n"
+        "مثال: ۴، ۸، ۳، ۹، ۲، ۱\n\n"
+        "بعد از لایو: /winner [کد]"
     )
     await update.message.reply_text(msg, parse_mode="Markdown")
 
@@ -389,7 +402,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"به نام: {CARD_OWNER}\n\n"
             f"🎫 کد قرعه‌کشی شما: {tracking}\n"
             f"👥 ظرفیت باقی‌مونده: {remaining_now} نفر\n\n"
-            "⚠️ این کد رو حتماً ذخیره کن، تو قرعه‌کشی بهش نیاز داری.\n\n"
+            "⚠️ این کد رو ذخیره کن! تو قرعه‌کشی لازمش داری.\n\n"
             "بعد از واریز، عکس رسید رو بفرست.\n\n"
             f"📞 پشتیبانی: {SUPPORT_USERNAME}"
         )
@@ -511,6 +524,8 @@ def main():
     app.add_handler(CommandHandler("announce", announce_cmd))
     app.add_handler(CommandHandler("draw", draw_cmd))
     app.add_handler(CommandHandler("winner", winner_cmd))
+    app.add_handler(CommandHandler("export", export_cmd))
+    app.add_handler(CommandHandler("list", list_cmd))
     app.add_handler(CallbackQueryHandler(check_join_callback, pattern="^check_join$"))
     app.add_handler(CallbackQueryHandler(button_callback, pattern="^(approve|reject)_"))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
